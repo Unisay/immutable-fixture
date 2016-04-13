@@ -15,4 +15,4 @@ libraryDependencies += "org.specs2" %% "specs2-core" % "3.7.2" % "test"
 libraryDependencies ++= Seq("monocle-core", "monocle-generic", "monocle-macro", "monocle-state", "monocle-refined")
   .map("com.github.julien-truffaut" %% _ % "1.2.0" % "test")
 
-scalacOptions in Test ++= Seq("-Yrangepos")
+scalacOptions in Test ++= Seq("-Yrangepos", "-feature")

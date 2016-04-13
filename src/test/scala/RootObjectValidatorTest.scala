@@ -1,7 +1,7 @@
 import EmployeeValidator._
 import cats.data.NonEmptyList
 import cats.data.Xor.{Left, Right}
-import monocle.macros.GenLens
+import monocle.macros.{GenLens, GenPrism}
 import org.specs2._
 import org.zalando.jsonapi.model.JsonApiObject.{NumberValue, StringValue}
 import org.zalando.jsonapi.model.Links.{Related, Self}
@@ -38,13 +38,12 @@ class RootObjectValidatorTest extends mutable.Specification {
     }
   )
 
-  import monocle.std._
+  import monocle.std.option.{some ⇒ SomePrism}
 
-  val _data            = GenLens[RootObject](_.data)
-  val _resourceObjects = GenLens[Data](_.resourceObjects)
-/*
-  val _resourceObject  = Lens[ResourceObjects, ResourceObject](???)(???)
-  val _attribute       = Lens[ResourceObject, Attribute](???)(???)*/
+  val _data            = GenLens[RootObject](_.data) composePrism SomePrism
+  val _resourceObjects = GenPrism[Data, ResourceObjects]
+  val _resourceObject  = GenPrism[Data, ResourceObject]
+  val _attributes      = GenLens[ResourceObject](_.attributes)
 
   "RootObjectValidator spec" >> {
 
