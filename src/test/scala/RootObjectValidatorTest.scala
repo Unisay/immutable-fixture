@@ -1,7 +1,6 @@
 import EmployeeValidator._
 import cats.data.NonEmptyList
 import cats.data.Xor.{Left, Right}
-import monocle.{Iso, Lens, POptional, Prism}
 import monocle.macros.{GenIso, GenLens, GenPrism}
 import org.specs2._
 import org.zalando.jsonapi.model.JsonApiObject.{NumberValue, StringValue}
@@ -41,18 +40,25 @@ class RootObjectValidatorTest extends mutable.Specification {
     }
   )
 
-  import monocle.std.option.{some ⇒ SomePrism}
-  import monocle.function.Cons._
-  import monocle.std.list._
   import monocle._
+  import monocle.function.all._
+  import monocle.std.list._
+  import monocle.std.option.{some ⇒ SomePrism}
 
+  def select[S](p: S => Boolean) = Prism[S, S](s => if (p(s)) Some(s) else None)(identity)
   def seqToList[A] = Iso[Seq[A], List[A]](_.toList)(_.seq)
   val _data = GenLens[RootObject](_.data) composePrism SomePrism
-  val _resourceObjects = _data composePrism GenPrism[Data, ResourceObjects]
-  val _resourcesObjectsList = _resourceObjects composeIso GenIso[ResourceObjects, Seq[ResourceObject]] composeIso seqToList
+  val _resourcesObjectsList = _data
+    .composePrism(GenPrism[Data, ResourceObjects])
+    .composeIso(GenIso[ResourceObjects, Seq[ResourceObject]])
+    .composeIso(seqToList)
   val _resource = _data composePrism GenPrism[Data, ResourceObject]
   val _firstResource = _resourcesObjectsList composeOptional headOption
-  val _attributes = GenLens[ResourceObject](_.attributes) composePrism SomePrism composeIso seqToList
+  val _attributes = _firstResource
+    .composeLens(GenLens[ResourceObject](_.attributes))
+    .composePrism(SomePrism)
+    .composeIso(seqToList)
+  val _value = GenLens[Attribute](_.value)
 
   "RootObjectValidator spec" >> {
 
@@ -62,13 +68,23 @@ class RootObjectValidatorTest extends mutable.Specification {
     }
 
     "returns error if RootObject has no attributes" >> {
-      val rootWithoutAttributes = (_firstResource composeOptional _attributes).set(Nil)(rootObject)
+      val rootWithoutAttributes = _attributes.set(Nil)(rootObject)
       validator.validate(rootWithoutAttributes) mustEqual Left(NonEmptyList(RequiredAttributeIsMissing("salary")))
     }
 
+    "returns error if salary is missing" >> {
+      val rootWithoutSalary = _attributes.modify(_.filterNot(_.name == "salary"))(rootObject)
+      validator.validate(rootWithoutSalary) mustEqual Left(NonEmptyList(RequiredAttributeIsMissing("salary")))
+    }
+
     "returns error if salary is negative" >> {
-      val root = rootObject
-      validator.validate(root) mustEqual Left(NonEmptyList(NegativeSalary))
+      val rootWithNegativeSalary = _attributes
+        .composeTraversal(each)
+        .composePrism(select(_.name == "salary"))
+        .composeLens(_value)
+        .set(NumberValue(-1))
+        .apply(rootObject)
+      validator.validate(rootWithNegativeSalary) mustEqual Left(NonEmptyList(NegativeSalary))
     }
 
     "returns valid RootObject" >> {
